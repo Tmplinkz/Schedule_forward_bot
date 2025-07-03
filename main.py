@@ -4,7 +4,9 @@ from pyrogram.types import Message
 from pyrogram.errors import FloodWait
 from pymongo import MongoClient
 from config import API_ID, API_HASH, MONGO_URI, OWNER_ID, SESSION_STRING
+import pyrogram.utils
 
+pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
 # MongoDB setup
 mongo = MongoClient(MONGO_URI)
 db = mongo['ForwardBot']
