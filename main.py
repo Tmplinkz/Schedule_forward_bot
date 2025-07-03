@@ -63,10 +63,11 @@ async def duration_cmd(client, message: Message):
 
 # Main forwarding loop
 async def forward_loop():
-    data = await get_data()
-    db_channel = data['db_channel']
-    duration = data['duration']
-    receivers = data['receiver_channels']
+    while True:
+        data = await get_data()
+        db_channel = data['db_channel']
+        duration = data['duration']
+        receivers = data['receiver_channels']
 
     if db_channel is None or not receivers:
         print("DB channel or receiver channels not configured yet.")
