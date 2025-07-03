@@ -1,5 +1,6 @@
 import asyncio
-from pyrogram import Client, filters, idle
+import signal
+from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymongo import MongoClient
 from telegram import Update
@@ -12,7 +13,6 @@ mongo = MongoClient(MONGO_URI)
 db = mongo["forwarder_db"]
 config_col = db["config"]
 
-# Database helper functions
 async def get_config(key, default=None):
     doc = config_col.find_one({"_id": key})
     return doc["value"] if doc else default
@@ -31,10 +31,10 @@ user = Client(
 # Telegram Bot client
 bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Owner‑only command handlers
+# Command handlers
 async def add_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
-        return await update.message.reply_text("You are not authorised to use this bot.")
+        return await update.message.reply_text("You are not authorised.")
     if not context.args:
         return await update.message.reply_text("Usage: /add_db CHANNEL_ID")
     channel_id = int(context.args[0])
@@ -43,7 +43,7 @@ async def add_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_receiver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
-        return await update.message.reply_text("You are not authorised to use this bot.")
+        return await update.message.reply_text("You are not authorised.")
     if not context.args:
         return await update.message.reply_text("Usage: /channel CHANNEL_ID")
     channel_id = int(context.args[0])
@@ -57,7 +57,7 @@ async def add_receiver(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def set_duration_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
-        return await update.message.reply_text("You are not authorised to use this bot.")
+        return await update.message.reply_text("You are not authorised.")
     if not context.args:
         return await update.message.reply_text("Usage: /duration MINUTES")
     minutes = int(context.args[0])
@@ -66,7 +66,7 @@ async def set_duration_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
-        return await update.message.reply_text("You are not authorised to use this bot.")
+        return await update.message.reply_text("You are not authorised.")
     db_channel = await get_config("db_channel")
     receivers = await get_config("receivers", []) or []
     duration = await get_config("duration", 30)
@@ -77,13 +77,13 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Duration: {duration} minutes"
     )
 
-# Register handlers with bot_app
+# Register handlers
 bot_app.add_handler(CommandHandler("add_db", add_db))
 bot_app.add_handler(CommandHandler("channel", add_receiver))
 bot_app.add_handler(CommandHandler("duration", set_duration_cmd))
 bot_app.add_handler(CommandHandler("info", info))
 
-# Pyrogram channel‑forward handler
+# Forward logic
 @user.on_message(filters.channel)
 async def forward_files(client: Client, message: Message):
     db_channel = await get_config("db_channel")
@@ -100,16 +100,17 @@ async def forward_files(client: Client, message: Message):
         await asyncio.sleep(duration * 60)
 
 async def main():
-    # Start both clients
     await user.start()
     await bot_app.initialize()
     bot_app.start()
-
-    # Launch polling loop
     bot_task = asyncio.create_task(bot_app.run_polling())
 
-    # Keep the program running
-    await idle()
+    # Wait for SIGTERM or SIGINT
+    loop = asyncio.get_running_loop()
+    stop_event = loop.create_future()
+    loop.add_signal_handler(signal.SIGTERM, stop_event.set_result, None)
+    loop.add_signal_handler(signal.SIGINT, stop_event.set_result, None)
+    await stop_event
 
     # Graceful shutdown
     bot_task.cancel()
@@ -119,4 +120,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
