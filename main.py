@@ -24,7 +24,7 @@ def update_data(key, value):
     col.update_one({"_id": "config"}, {"$set": {key: value}})
 
 # Start command
-@app.on_message(filters.command("start")
+@app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     print("🔵 Received /start command from {message.from_user.id}")
     await message.reply("👋 **User Forward Bot Active**\n\nUse /add_db /add_channel /duration to configure.")
