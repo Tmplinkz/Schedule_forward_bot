@@ -103,11 +103,11 @@ async def forward_loop():
                             except Exception as e:
                                 print(f"❌ Error in forward loop: {e}")
                                 await asyncio.sleep(60)
-
-# Run
-if __name__ == "__main__":
-    print("🔵 Bot starting...")
-    loop = asyncio.get_event_loop()
-    loop.create_task(forward_loop())
-    app.run()
+                                
+                                
+                                if __name__ == "__main__":
+                                    print("🔵 Bot starting...")
+                                    loop = asyncio.get_event_loop()
+                                    loop.create_task(forward_loop())
+                                    app.run()
     
