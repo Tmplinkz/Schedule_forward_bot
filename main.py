@@ -1,5 +1,5 @@
 import asyncio
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.types import Message
 from pymongo import MongoClient
 from config import API_ID, API_HASH, MONGO_URI, OWNER_ID, SESSION_STRING
@@ -9,7 +9,7 @@ mongo = MongoClient(MONGO_URI)
 db = mongo['ForwardBot']
 col = db['Data']
 
-# Pyrogram client
+# Pyrogram client (userbot session)
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
 # Helper: get & set database values
@@ -93,15 +93,15 @@ async def forward_loop():
             async for msg in msgs:
                 msg_list.append(msg)
 
-            msg_list.reverse()  # ✅ oldest to newest
+            msg_list.reverse()  # oldest to newest
 
+            forwarded_count = 0
             for msg in msg_list:
-                #print(f"🔍 DEBUG: Processing msg {msg}")
                 if hasattr(msg, "message_id"):
                     for r in receivers:
                         try:
                             await app.forward_messages(r, db_channel, msg.message_id)
-                            #print(f"✅ Forwarded message {msg.message_id} to {r}")
+                            forwarded_count += 1
                         except Exception as e:
                             print(f"❌ Failed to forward: {e}")
                     update_data("last_forwarded_id", msg.message_id)
@@ -109,14 +109,21 @@ async def forward_loop():
                 else:
                     print("⚠️ msg has no message_id attribute, skipping...")
 
+            print(f"✅ Forwarded {forwarded_count} messages this cycle.")
+            await asyncio.sleep(max(duration * 60, 30))  # Minimum 30 sec between loops
+
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
             await asyncio.sleep(60)
 
-# Run
-if __name__ == "__main__":
+# Async main startup
+async def main():
     print("🔵 Bot starting...")
-    loop = asyncio.get_event_loop()
-    loop.create_task(forward_loop())
-    app.run()
-            
+    await app.start()
+    asyncio.create_task(forward_loop())
+    await idle()
+    await app.stop()
+
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(main())
+                
