@@ -103,7 +103,6 @@ async def resume_cmd(client, message: Message):
 
 # Forward loop
 async def forward_loop():
-    await app.start()
     print("🔵 Forward loop started.")
     while True:
         try:
