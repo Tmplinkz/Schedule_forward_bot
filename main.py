@@ -82,21 +82,27 @@ async def forward_loop():
                 print("⚠️ DB channel or receiver channels not configured yet. Waiting...")
                 await asyncio.sleep(60)
                 continue
-
-            msgs = app.get_chat_history(db_channel, offset_id=last_id, reverse=True)
-            async for msg in msgs:
-                for r in receivers:
-                    try:
-                        await msg.copy(r)
-                        print(f"✅ Forwarded message {msg.message_id} to {r}")
-                    except Exception as e:
-                        print(f"❌ Failed to forward: {e}")
-                update_data("last_forwarded_id", msg.message_id)
-                await asyncio.sleep(duration * 60)
-
-        except Exception as e:
-            print(f"❌ Error in forward loop: {e}")
-            await asyncio.sleep(60)
+                
+                msgs = app.get_chat_history(db_channel, offset_id=last_id)
+                msg_list = []
+                async for msg in msgs:
+                    msg_list.append(msg)
+                    
+                    msg_list.reverse()  # ✅ oldest to newes
+                    
+                    for msg in msg_list:
+                        for r in receivers:
+                            try:
+                                await msg.copy(r)
+                                print(f"✅ Forwarded message {msg.message_id} to {r}")
+                            except Exception as e:
+                                print(f"❌ Failed to forward: {e}")
+                                update_data("last_forwarded_id", msg.message_id)
+                                await asyncio.sleep(duration * 60)
+                            
+                            except Exception as e:
+                                print(f"❌ Error in forward loop: {e}")
+                                await asyncio.sleep(60)
 
 # Run
 if __name__ == "__main__":
