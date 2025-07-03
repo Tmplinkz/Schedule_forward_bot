@@ -1,6 +1,7 @@
 import asyncio
 from pyrogram import Client, filters, idle
 from pyrogram.types import Message
+from pyrogram.errors import FloodWait
 from pymongo import MongoClient
 from config import API_ID, API_HASH, MONGO_URI, OWNER_ID, SESSION_STRING
 
@@ -9,7 +10,7 @@ mongo = MongoClient(MONGO_URI)
 db = mongo['ForwardBot']
 col = db['Data']
 
-# Pyrogram client (userbot session)
+# Pyrogram client
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
 # Helper: get & set database values
@@ -97,26 +98,30 @@ async def forward_loop():
 
             forwarded_count = 0
             for msg in msg_list:
-                if hasattr(msg, "message_id"):
-                    for r in receivers:
-                        try:
-                            await app.forward_messages(r, db_channel, msg.message_id)
-                            forwarded_count += 1
-                        except Exception as e:
-                            print(f"❌ Failed to forward: {e}")
-                    update_data("last_forwarded_id", msg.message_id)
-                    await asyncio.sleep(duration * 60)
-                else:
-                    print("⚠️ msg has no message_id attribute, skipping...")
+                for r in receivers:
+                    try:
+                        await app.forward_messages(r, db_channel, msg.id)
+                        forwarded_count += 1
+                        print(f"✅ Forwarded message {msg.id} to {r}")
+                    except FloodWait as fw:
+                        print(f"⏳ FloodWait: Sleeping for {fw.value} seconds.")
+                        await asyncio.sleep(fw.value)
+                    except Exception as e:
+                        print(f"❌ Failed to forward: {e}")
+                update_data("last_forwarded_id", msg.id)
+                await asyncio.sleep(duration * 60)
 
             print(f"✅ Forwarded {forwarded_count} messages this cycle.")
-            await asyncio.sleep(max(duration * 60, 30))  # Minimum 30 sec between loops
+            await asyncio.sleep(max(duration * 60, 30))
 
+        except FloodWait as fw:
+            print(f"⏳ FloodWait (global): Sleeping for {fw.value} seconds.")
+            await asyncio.sleep(fw.value)
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
             await asyncio.sleep(60)
 
-# Async main startup
+# Run with app.start() before loop
 async def main():
     print("🔵 Bot starting...")
     await app.start()
