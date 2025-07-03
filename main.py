@@ -96,12 +96,12 @@ async def forward_loop():
             msg_list.reverse()  # ✅ oldest to newest
 
             for msg in msg_list:
-                print(f"🔍 DEBUG: Processing msg {msg}")
+                #print(f"🔍 DEBUG: Processing msg {msg}")
                 if hasattr(msg, "message_id"):
                     for r in receivers:
                         try:
                             await app.forward_messages(r, db_channel, msg.message_id)
-                            print(f"✅ Forwarded message {msg.message_id} to {r}")
+                            #print(f"✅ Forwarded message {msg.message_id} to {r}")
                         except Exception as e:
                             print(f"❌ Failed to forward: {e}")
                     update_data("last_forwarded_id", msg.message_id)
