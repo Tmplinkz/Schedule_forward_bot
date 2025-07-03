@@ -13,11 +13,11 @@ col = db['Data']
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
 # Helper: get & set database values
-async def get_data():
-    data = await col.find_one({"_id": "config"})
+def get_data():
+    data = col.find_one({"_id": "config"})
     if data is None:
-        await col.insert_one({"_id": "config", "db_channel": None, "receiver_channels": [], "duration": 30})
-        data = await col.find_one({"_id": "config"})
+        col.insert_one({"_id": "config", "db_channel": None, "receiver_channels": [], "duration": 30, "last_forwarded_id": 0})
+        data = col.find_one({"_id": "config"})
     return data
 
 async def update_data(key, value):
@@ -64,7 +64,7 @@ async def duration_cmd(client, message: Message):
 # Main forwarding loop
 async def forward_loop():
     while True:
-        data = await get_data()
+        data = get_data()
         db_channel = data['db_channel']
         duration = data['duration']
         receivers = data['receiver_channels']
