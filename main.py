@@ -16,7 +16,13 @@ app = Client("bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STR
 def get_data():
     data = col.find_one({"_id": "config"})
     if data is None:
-        col.insert_one({"_id": "config", "db_channel": None, "receiver_channels": [], "duration": 30, "last_forwarded_id": 0})
+        col.insert_one({
+            "_id": "config",
+            "db_channel": None,
+            "receiver_channels": [],
+            "duration": 30,
+            "last_forwarded_id": 0
+        })
         data = col.find_one({"_id": "config"})
     return data
 
@@ -90,14 +96,18 @@ async def forward_loop():
             msg_list.reverse()  # ✅ oldest to newest
 
             for msg in msg_list:
-                for r in receivers:
-                    try:
-                        await msg.copy(r)
-                        print(f"✅ Forwarded message {msg.message_id} to {r}")
-                    except Exception as e:
-                        print(f"❌ Failed to forward: {e}")
-                update_data("last_forwarded_id", msg.message_id)
-                await asyncio.sleep(duration * 60)
+                print(f"🔍 DEBUG: Processing msg {msg}")
+                if hasattr(msg, "message_id"):
+                    for r in receivers:
+                        try:
+                            await app.forward_messages(r, db_channel, msg.message_id)
+                            print(f"✅ Forwarded message {msg.message_id} to {r}")
+                        except Exception as e:
+                            print(f"❌ Failed to forward: {e}")
+                    update_data("last_forwarded_id", msg.message_id)
+                    await asyncio.sleep(duration * 60)
+                else:
+                    print("⚠️ msg has no message_id attribute, skipping...")
 
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
@@ -109,4 +119,4 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(forward_loop())
     app.run()
-    
+            
