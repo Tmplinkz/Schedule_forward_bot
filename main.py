@@ -2,82 +2,93 @@ import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymongo import MongoClient
-from config import API_ID, API_HASH, BOT_TOKEN, MONGO_URI, OWNER_ID, SESSION_STRING
+from config import API_ID, API_HASH, SESSION_STRING, MONGO_URI, OWNER_ID
 
 # MongoDB setup
-mongo = MongoClient(MONGO_URI)
-db = mongo["forwarder_db"]
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client["schedule_forward_userbot"]
 config_col = db["config"]
 
-def get_config(key, default=None):
-    doc = config_col.find_one({"_id": key})
-    return doc["value"] if doc else default
+app = Client("schedule_forward_userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
-def set_config(key, value):
-    config_col.update_one({"_id": key}, {"$set": {"value": value}}, upsert=True)
 
-# Initialize Pyrogram client (bot)
-app = Client("bot", session_string=SESSION_STRING, api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+async def forward_worker():
+    while True:
+        config = config_col.find_one({"_id": 1})
+        if not config:
+            await asyncio.sleep(30)
+            continue
 
-# Owner-only filter
-def is_owner(_, message: Message):
-    return message.from_user and message.from_user.id == OWNER_ID
+        db_channel = config.get("db_channel")
+        receiver_channels = config.get("receiver_channels", [])
+        duration = config.get("duration", 30)
 
-@app.on_message(filters.command("add_db") & filters.private & filters.create(is_owner))
-async def add_db(c: Client, m: Message):
-    if not m.command or len(m.command) < 2:
-        return await m.reply_text("Usage: /add_db CHANNEL_ID")
-    set_config("db_channel", int(m.command[1]))
-    await m.reply_text(f"DB channel set to {m.command[1]}")
+        if not db_channel or not receiver_channels:
+            await asyncio.sleep(30)
+            continue
 
-@app.on_message(filters.command("channel") & filters.private & filters.create(is_owner))
-async def add_receiver(c: Client, m: Message):
-    if not m.command or len(m.command) < 2:
-        return await m.reply_text("Usage: /channel CHANNEL_ID")
-    recv = int(m.command[1])
-    receivers = get_config("receivers", []) or []
-    if recv not in receivers:
-        receivers.append(recv)
-        set_config("receivers", receivers)
-        await m.reply_text(f"Added receiver: {recv}")
-    else:
-        await m.reply_text("Already exists.")
+        async for msg in app.get_chat_history(db_channel, reverse=True):
+            if msg.forward_from_chat or msg.forward_from:
+                continue  # skip already forwarded messages
 
-@app.on_message(filters.command("duration") & filters.private & filters.create(is_owner))
-async def set_duration_cmd(c: Client, m: Message):
-    if not m.command or len(m.command) < 2:
-        return await m.reply_text("Usage: /duration MINUTES")
-    minutes = int(m.command[1])
-    set_config("duration", minutes)
-    await m.reply_text(f"Duration set to {minutes} minutes.")
+            for rcvr in receiver_channels:
+                try:
+                    await msg.forward(rcvr)
+                    print(f"Forwarded message {msg.id} to {rcvr}")
+                except Exception as e:
+                    print(f"Failed to forward {msg.id} to {rcvr}: {e}")
 
-@app.on_message(filters.command("info") & filters.private & filters.create(is_owner))
-async def info(c: Client, m: Message):
-    db_channel = get_config("db_channel")
-    receivers = get_config("receivers", []) or []
-    duration = get_config("duration", 30)
-    await m.reply_text(
-        f"✅ Current Settings:\n"
-        f"DB Channel: {db_channel}\n"
-        f"Receivers: {receivers}\n"
-        f"Duration: {duration} minutes"
-    )
+            await asyncio.sleep(duration * 60)  # duration in minutes
 
-# Forwarding logic
-@app.on_message(filters.channel)
-async def forward_files(c: Client, m: Message):
-    db_channel = get_config("db_channel")
-    receivers = get_config("receivers", []) or []
-    duration = get_config("duration", 30)
-    if m.chat.id != db_channel:
-        return
-    for rcv in receivers:
-        try:
-            await m.forward(rcv)
-        except Exception as e:
-            print(f"Failed to forward to {rcv}: {e}")
-        await asyncio.sleep(duration * 60)
+
+@app.on_message(filters.command("start") & filters.user(OWNER_ID))
+async def start_cmd(client, message: Message):
+    await message.reply("👋 Welcome! I am your scheduled forwarder userbot.")
+
+
+@app.on_message(filters.command("add_db") & filters.user(OWNER_ID))
+async def add_db(client, message: Message):
+    if len(message.command) < 2:
+        return await message.reply("❌ Usage: /add_db [channel_id]")
+    db_channel = int(message.command[1])
+    config_col.update_one({"_id": 1}, {"$set": {"db_channel": db_channel}}, upsert=True)
+    await message.reply(f"✅ Database channel set to `{db_channel}`.")
+
+
+@app.on_message(filters.command("add_channel") & filters.user(OWNER_ID))
+async def add_channel(client, message: Message):
+    if len(message.command) < 2:
+        return await message.reply("❌ Usage: /add_channel [channel_id]")
+    receiver = int(message.command[1])
+    config = config_col.find_one({"_id": 1}) or {}
+    receivers = config.get("receiver_channels", [])
+    if receiver not in receivers:
+        receivers.append(receiver)
+        config_col.update_one({"_id": 1}, {"$set": {"receiver_channels": receivers}}, upsert=True)
+    await message.reply(f"✅ Added receiver channel `{receiver}`.")
+
+
+@app.on_message(filters.command("duration") & filters.user(OWNER_ID))
+async def set_duration(client, message: Message):
+    if len(message.command) < 2:
+        return await message.reply("❌ Usage: /duration [minutes]")
+    duration = int(message.command[1])
+    config_col.update_one({"_id": 1}, {"$set": {"duration": duration}}, upsert=True)
+    await message.reply(f"✅ Duration set to {duration} minutes.")
+
+
+@app.on_message(filters.command("show_config") & filters.user(OWNER_ID))
+async def show_config(client, message: Message):
+    config = config_col.find_one({"_id": 1}) or {}
+    await message.reply(f"📊 Current Config:\n\n{config}")
+
+
+async def main():
+    await app.start()
+    print("Bot started...")
+    await forward_worker()
+
 
 if __name__ == "__main__":
-    app.run()
-        
+    asyncio.get_event_loop().run_until_complete(main())
+            
