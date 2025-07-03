@@ -16,10 +16,10 @@ def get_config(key, default=None):
 def set_config(key, value):
     config_col.update_one({"_id": key}, {"$set": {"value": value}}, upsert=True)
 
-# Initialize Pyrogram client (both bot and user via SESSION_STRING)
+# Initialize Pyrogram client (bot)
 app = Client("bot", session_string=SESSION_STRING, api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# Owner-only command templates
+# Owner-only filter
 def is_owner(_, message: Message):
     return message.from_user and message.from_user.id == OWNER_ID
 
@@ -78,13 +78,6 @@ async def forward_files(c: Client, m: Message):
             print(f"Failed to forward to {rcv}: {e}")
         await asyncio.sleep(duration * 60)
 
-async def main():
-    await app.start()
-    print("Bot started")
-    await app.idle()
-    await app.stop()
-    print("Bot stopped")
-
 if __name__ == "__main__":
-    asyncio.run(main())
-    
+    app.run()
+        
