@@ -7,12 +7,13 @@ from config import API_ID, API_HASH, MONGO_URI, OWNER_ID, SESSION_STRING
 import pyrogram.utils
 
 pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
+
 # MongoDB setup
 mongo = MongoClient(MONGO_URI)
 db = mongo['ForwardBot']
 col = db['Data']
 
-# Pyrogram client
+# Pyrogram client (Userbot)
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
 # Helper: get & set database values
@@ -32,14 +33,14 @@ def get_data():
 def update_data(key, value):
     col.update_one({"_id": "config"}, {"$set": {key: value}})
 
-# Start command
+# /start command
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id if message.from_user else message.sender_chat.id
     print(f"🔵 Received /start command from {user_id}")
     await message.reply("👋 **User Forward Bot Active**")
 
-# Add db channel command
+# /add_db command
 @app.on_message(filters.command("add_db") & filters.user(OWNER_ID))
 async def add_db_cmd(client, message: Message):
     if len(message.command) < 2:
@@ -49,7 +50,7 @@ async def add_db_cmd(client, message: Message):
     update_data("db_channel", db_channel)
     await message.reply(f"✅ DB Channel set to `{db_channel}`")
 
-# Add receiver channel command
+# /add_channel command
 @app.on_message(filters.command("add_channel") & filters.user(OWNER_ID))
 async def add_channel_cmd(client, message: Message):
     if len(message.command) < 2:
@@ -65,7 +66,7 @@ async def add_channel_cmd(client, message: Message):
     else:
         await message.reply(f"⚠️ Receiver channel `{receiver}` already exists.")
 
-# Duration command
+# /duration command
 @app.on_message(filters.command("duration") & filters.user(OWNER_ID))
 async def duration_cmd(client, message: Message):
     if len(message.command) < 2:
@@ -91,10 +92,10 @@ async def forward_loop():
                 await asyncio.sleep(60)
                 continue
 
-            msgs = app.get_chat_history(db_channel, offset_id=last_id)
             msg_list = []
-            async for msg in msgs:
-                msg_list.append(msg)
+            async for msg in app.get_chat_history(db_channel):
+                if msg.id > last_id:
+                    msg_list.append(msg)
 
             msg_list.reverse()  # oldest to newest
 
@@ -113,8 +114,10 @@ async def forward_loop():
                 update_data("last_forwarded_id", msg.id)
                 await asyncio.sleep(duration * 60)
 
-            print(f"✅ Forwarded {forwarded_count} messages this cycle.")
-            await asyncio.sleep(max(duration * 60, 30))
+            if forwarded_count == 0:
+                print("ℹ️ No new messages found.")
+
+            await asyncio.sleep(30)
 
         except FloodWait as fw:
             print(f"⏳ FloodWait (global): Sleeping for {fw.value} seconds.")
@@ -133,4 +136,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
-                
+    
