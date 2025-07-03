@@ -29,7 +29,6 @@ async def start_cmd(client, message: Message):
     user_id = message.from_user.id if message.from_user else message.sender_chat.id
     print(f"🔵 Received /start command from {user_id}")
     await message.reply("👋 **User Forward Bot Active**")
-    
 
 # Add db channel command
 @app.on_message(filters.command("add_db") & filters.user(OWNER_ID))
@@ -82,32 +81,32 @@ async def forward_loop():
                 print("⚠️ DB channel or receiver channels not configured yet. Waiting...")
                 await asyncio.sleep(60)
                 continue
-                
-                msgs = app.get_chat_history(db_channel, offset_id=last_id)
-                msg_list = []
-                async for msg in msgs:
-                    msg_list.append(msg)
-                    
-                    msg_list.reverse()  # ✅ oldest to newes
-                    
-                    for msg in msg_list:
-                        for r in receivers:
-                            try:
-                                await msg.copy(r)
-                                print(f"✅ Forwarded message {msg.message_id} to {r}")
-                            except Exception as e:
-                                print(f"❌ Failed to forward: {e}")
-                                update_data("last_forwarded_id", msg.message_id)
-                                await asyncio.sleep(duration * 60)
-                            
-                            except Exception as e:
-                                print(f"❌ Error in forward loop: {e}")
-                                await asyncio.sleep(60)
-                                
-                                
-                                if __name__ == "__main__":
-                                    print("🔵 Bot starting...")
-                                    loop = asyncio.get_event_loop()
-                                    loop.create_task(forward_loop())
-                                    app.run()
-                                    
+
+            msgs = app.get_chat_history(db_channel, offset_id=last_id)
+            msg_list = []
+            async for msg in msgs:
+                msg_list.append(msg)
+
+            msg_list.reverse()  # ✅ oldest to newest
+
+            for msg in msg_list:
+                for r in receivers:
+                    try:
+                        await msg.copy(r)
+                        print(f"✅ Forwarded message {msg.message_id} to {r}")
+                    except Exception as e:
+                        print(f"❌ Failed to forward: {e}")
+                update_data("last_forwarded_id", msg.message_id)
+                await asyncio.sleep(duration * 60)
+
+        except Exception as e:
+            print(f"❌ Error in forward loop: {e}")
+            await asyncio.sleep(60)
+
+# Run
+if __name__ == "__main__":
+    print("🔵 Bot starting...")
+    loop = asyncio.get_event_loop()
+    loop.create_task(forward_loop())
+    app.run()
+    
