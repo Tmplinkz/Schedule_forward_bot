@@ -63,7 +63,6 @@ async def duration_cmd(client, message: Message):
 
 # Main forwarding loop
 async def forward_loop():
-    await app.start()
     data = await get_data()
     db_channel = data['db_channel']
     duration = data['duration']
