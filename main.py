@@ -110,37 +110,41 @@ async def forward_loop():
     while True:
         try:
             data = get_data()
-            if data['paused']:
-                print("⏸️ Forwarding is paused.")
-                await asyncio.sleep(30)
+            db_channel = data['db_channel']
+            duration = data['duration']
+            receivers = data['receiver_channels']
+            last_id = data['last_forwarded_id']
+            paused = data['paused']
+
+            if paused:
+                print("⏸️ Forwarding paused. Sleeping...")
+                await asyncio.sleep(60)
                 continue
 
-            db_channel = data['db_channel']
-            receivers = data['receiver_channels']
-            duration = data['duration']
-            last_id = data['last_forwarded_id']
-
             if db_channel is None or not receivers:
-                print("⚠️ DB channel or receivers not configured. Waiting...")
+                print("⚠️ DB channel or receivers not configured.")
                 await asyncio.sleep(60)
                 continue
 
             msgs = app.get_chat_history(db_channel, offset_id=last_id)
-            msg_list = []
+
             async for msg in msgs:
-                msg_list.append(msg)
+                if not msg or not hasattr(msg, "id"):
+                    print("⚠️ Skipping invalid message.")
+                    continue
+                if msg.empty or (not msg.text and not msg.media):
+                    print("⚠️ Skipping empty/service message.")
+                    continue
 
-            msg_list.reverse()  # oldest to newest
-
-            for msg in msg_list:
                 for r in receivers:
                     try:
-                        copied = await msg.copy(r)
-                        print(f"✅ Copied message {copied.id} to {r}")
+                        await msg.copy(r)
+                        print(f"✅ Copied message {msg.id} to {r}")
                         update_data("last_forwarded_id", msg.id)
                         await asyncio.sleep(duration * 60)
                     except Exception as e:
                         print(f"❌ Failed to forward: {e}")
+                        await asyncio.sleep(5)
 
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
