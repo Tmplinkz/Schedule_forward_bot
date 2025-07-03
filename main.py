@@ -20,12 +20,13 @@ def get_data():
         data = col.find_one({"_id": "config"})
     return data
 
-async def update_data(key, value):
-    await col.update_one({"_id": "config"}, {"$set": {key: value}})
+def update_data(key, value):
+    col.update_one({"_id": "config"}, {"$set": {key: value}})
 
 # Start command
 @app.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_cmd(client, message: Message):
+    print("🔵 Received /start command")
     await message.reply("👋 **User Forward Bot Active**\n\nUse /add_db /add_channel /duration to configure.")
 
 # Add db channel command
@@ -35,7 +36,7 @@ async def add_db_cmd(client, message: Message):
         await message.reply("Usage: `/add_db <channel_id>`", quote=True)
         return
     db_channel = int(message.command[1])
-    await update_data("db_channel", db_channel)
+    update_data("db_channel", db_channel)
     await message.reply(f"✅ DB Channel set to `{db_channel}`")
 
 # Add receiver channel command
@@ -45,11 +46,14 @@ async def add_channel_cmd(client, message: Message):
         await message.reply("Usage: `/add_channel <channel_id>`", quote=True)
         return
     receiver = int(message.command[1])
-    data = await get_data()
+    data = get_data()
     receivers = data['receiver_channels']
-    receivers.append(receiver)
-    await update_data("receiver_channels", receivers)
-    await message.reply(f"✅ Added receiver channel `{receiver}`")
+    if receiver not in receivers:
+        receivers.append(receiver)
+        update_data("receiver_channels", receivers)
+        await message.reply(f"✅ Added receiver channel `{receiver}`")
+    else:
+        await message.reply(f"⚠️ Receiver channel `{receiver}` already exists.")
 
 # Duration command
 @app.on_message(filters.command("duration") & filters.user(OWNER_ID))
@@ -58,32 +62,43 @@ async def duration_cmd(client, message: Message):
         await message.reply("Usage: `/duration <minutes>`", quote=True)
         return
     duration = int(message.command[1])
-    await update_data("duration", duration)
+    update_data("duration", duration)
     await message.reply(f"✅ Duration set to {duration} minutes.")
 
 # Main forwarding loop
 async def forward_loop():
+    print("🔵 Forward loop started.")
     while True:
-        data = get_data()
-        db_channel = data['db_channel']
-        duration = data['duration']
-        receivers = data['receiver_channels']
+        try:
+            data = get_data()
+            db_channel = data['db_channel']
+            duration = data['duration']
+            receivers = data['receiver_channels']
+            last_id = data['last_forwarded_id']
 
-    if db_channel is None or not receivers:
-        print("DB channel or receiver channels not configured yet.")
-        return
+            if db_channel is None or not receivers:
+                print("⚠️ DB channel or receiver channels not configured yet. Waiting...")
+                await asyncio.sleep(60)
+                continue
 
-    async for msg in app.get_chat_history(db_channel, reverse=True):
-        for r in receivers:
-            try:
-                await msg.copy(r)
-                print(f"Forwarded message {msg.message_id} to {r}")
-            except Exception as e:
-                print(f"Failed to forward: {e}")
-        await asyncio.sleep(duration * 60)
+            msgs = app.get_chat_history(db_channel, offset_id=last_id, reverse=True)
+            async for msg in msgs:
+                for r in receivers:
+                    try:
+                        await msg.copy(r)
+                        print(f"✅ Forwarded message {msg.message_id} to {r}")
+                    except Exception as e:
+                        print(f"❌ Failed to forward: {e}")
+                update_data("last_forwarded_id", msg.message_id)
+                await asyncio.sleep(duration * 60)
+
+        except Exception as e:
+            print(f"❌ Error in forward loop: {e}")
+            await asyncio.sleep(60)
 
 # Run
 if __name__ == "__main__":
+    print("🔵 Bot starting...")
     loop = asyncio.get_event_loop()
     loop.create_task(forward_loop())
     app.run()
