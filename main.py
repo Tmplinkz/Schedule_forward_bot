@@ -26,7 +26,7 @@ def update_data(key, value):
 # Start command
 @app.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_cmd(client, message: Message):
-    print("🔵 Received /start command")
+    print("🔵 Received /start command from {message.from_user.id}")
     await message.reply("👋 **User Forward Bot Active**\n\nUse /add_db /add_channel /duration to configure.")
 
 # Add db channel command
