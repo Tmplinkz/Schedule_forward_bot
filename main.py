@@ -27,6 +27,9 @@ def get_data():
             "paused": False
         })
         data = col.find_one({"_id": "config"})
+    elif "paused" not in data:
+        col.update_one({"_id": "config"}, {"$set": {"paused": False}})
+        data = col.find_one({"_id": "config"})
     return data
 
 def update_data(key, value):
