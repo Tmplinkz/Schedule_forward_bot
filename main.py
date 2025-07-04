@@ -104,7 +104,6 @@ async def info_cmd(client, message: Message):
 
 # Forward loop
 async def forward_loop():
-    await app.start()
     while True:
         cfg = await get_config()
         if cfg["paused"]:
