@@ -147,7 +147,7 @@ async def forward_loop():
                     for r in receivers:
                         try:
                             await msg.copy(r)
-                            print(f"✅ Forwarded message {msg.id} to {r}"
+                            print(f"✅ Forwarded message {msg.id} to {r}")
                         except Exception as e:
                             print(f"❌ Failed to forward message {msg.id} to {r}: {e}")
 
