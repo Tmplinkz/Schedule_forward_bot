@@ -103,61 +103,69 @@ async def forward_loop():
     print("🔵 Forward loop started.")
 
     while True:
-        data = await get_config()
-        if data["paused"]:
-            print("⏸️ Forwarding is paused.")
-            await asyncio.sleep(10)
-            continue
-
-        db_channel = data["db_channel"]
-        receivers = data["receivers"]
-        duration = data["duration"]
-
-        if not db_channel or not receivers:
-            print("⚠️ DB channel or receivers not set.")
-            await asyncio.sleep(10)
-            continue
-
         try:
-            msgs = []
-            async for msg in app.get_chat_history(db_channel, limit=20):
-                msgs.append(msg)
+            # Get db channel
+            db_data = db.settings.find_one({"_id": "db_channel"})
+            if not db_data:
+                print("❌ No DB channel set. Sleeping...")
+                await asyncio.sleep(30)
+                continue
+            db_channel = db_data["id"]
 
-            msgs.reverse()  # process oldest first
+            # Get receivers
+            receivers_data = db.settings.find_one({"_id": "receivers"})
+            receivers = receivers_data["ids"] if receivers_data else []
+
+            if not receivers:
+                print("❌ No receiver channels added. Sleeping...")
+                await asyncio.sleep(30)
+                continue
+
+            # Get duration
+            duration_data = db.settings.find_one({"_id": "duration"})
+            duration = duration_data["seconds"] if duration_data else 1800  # default 30 min
+
+            # Get last forwarded ID
+            forward_state = db.settings.find_one({"_id": "forwarding"})
+            last_id = forward_state["last_id"] if forward_state else 0
+
+            # Fetch messages after last forwarded ID
+            msgs = app.get_chat_history(db_channel, offset_id=last_id)
 
             valid_found = False
-            skipped_count = 0
-
-            for msg in msgs:
+            async for msg in msgs:
                 if not msg or not hasattr(msg, "id"):
-                    print("⚠️ Skipping invalid message.")
-                    skipped_count += 1
                     continue
                 if msg.empty or (not msg.text and not msg.media):
-                    print("⚠️ Skipping empty/service message.")
-                    skipped_count += 1
                     continue
 
                 valid_found = True
 
+                # Forward to all receivers
                 for r in receivers:
                     try:
                         await msg.copy(r)
-                        print(f"✅ Forwarded message {msg.id} to {r}")
+                        print(f"✅ Forwarded {msg.id} to {r}")
                     except Exception as e:
                         print(f"❌ Failed to forward {msg.id} to {r}: {e}")
 
+                # Update last forwarded ID
+                db.settings.update_one(
+                    {"_id": "forwarding"},
+                    {"$set": {"last_id": msg.id}},
+                    upsert=True
+                )
+
+                # Sleep between messages
                 await asyncio.sleep(duration)
 
-            if skipped_count > 0:
-                print(f"⚠️ Skipped {skipped_count} invalid/empty/service messages in this batch.")
             if not valid_found:
-                print("⏳ No valid messages found, sleeping.")
+                print("⏳ No new valid messages found. Sleeping...")
                 await asyncio.sleep(duration)
 
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
-            await asyncio.sleep(10)
+            await asyncio.sleep(30)
 
 # Run
 if __name__ == "__main__":
@@ -165,4 +173,4 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(forward_loop())
     app.run()
-    
+            
