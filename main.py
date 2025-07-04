@@ -126,12 +126,12 @@ async def forward_loop():
                 await asyncio.sleep(60)
                 continue
 
-msgs = app.get_chat_history(db_channel, offset_id=last_id, limit=20)
+            msgs = app.get_chat_history(db_channel, offset_id=last_id, limit=20)
 
-valid_found = False
-skipped_count = 0
+            valid_found = False
+            skipped_count = 0
 
-try:
+            try:
     async for msg in msgs:
         if not msg or not hasattr(msg, "id"):
             print("⚠️ Skipping invalid message.")
@@ -169,7 +169,4 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(forward_loop())
     app.run()
-    
-
-
     
