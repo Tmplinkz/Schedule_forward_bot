@@ -6,139 +6,163 @@ from config import API_ID, API_HASH, SESSION_STRING, MONGO_URI, OWNER_ID
 import pyrogram.utils
 
 pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
-
-# Initialize userbot client
-app = Client(name="userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
-
 # Initialize MongoDB
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["forward_bot"]
-config_col = db["config"]
+mongo = MongoClient(MONGO_URI)
+db = mongo.forwardbot
+config = db.config
+
+# Initialize userbot
+app = Client("userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
 # Helper functions
 async def get_config():
-    cfg = config_col.find_one({"_id": 1})
-    if not cfg:
-        config_col.insert_one({"_id": 1, "db_channel": None, "receivers": [], "paused": False, "duration": 1800})
-        cfg = config_col.find_one({"_id": 1})
-    return cfg
+    data = config.find_one({"_id": "config"})
+    if not data:
+        config.insert_one({
+            "_id": "config",
+            "db_channel": None,
+            "receivers": [],
+            "paused": False,
+            "duration": 1800
+        })
+        return config.find_one({"_id": "config"})
+    return data
 
-async def update_config(updates: dict):
-    config_col.update_one({"_id": 1}, {"$set": updates})
+async def update_config(update):
+    config.update_one({"_id": "config"}, {"$set": update})
 
-# /start
+# Commands
 @app.on_message(filters.command("start") & filters.user(OWNER_ID))
-async def start_cmd(client, message: Message):
-    await message.reply("✅ Userbot is running and ready to forward your files.\nUse /info to check current setup.")
+async def start(_, m: Message):
+    await m.reply("👋 **Welcome to your Forward Bot Userbot!**\n\nUse /add_db, /add_channel, /duration, /pause, /resume as needed.")
 
-# /add_db
 @app.on_message(filters.command("add_db") & filters.user(OWNER_ID))
-async def add_db_cmd(client, message: Message):
-    if len(message.command) < 2:
-        await message.reply("❌ Usage: /add_db [channel_id]")
-        return
-    db_channel = int(message.command[1])
-    await update_config({"db_channel": db_channel})
-    await message.reply(f"✅ DB channel set to `{db_channel}`.")
+async def add_db(_, m: Message):
+    if len(m.command) < 2:
+        return await m.reply("❌ Usage: /add_db CHANNEL_ID")
+    await update_config({"db_channel": int(m.command[1])})
+    await m.reply(f"✅ Database channel set to `{m.command[1]}`.")
 
-# /add_channel
 @app.on_message(filters.command("add_channel") & filters.user(OWNER_ID))
-async def add_channel_cmd(client, message: Message):
-    if len(message.command) < 2:
-        await message.reply("❌ Usage: /add_channel [channel_id]")
-        return
-    cfg = await get_config()
-    receivers = cfg["receivers"]
-    channel_id = int(message.command[1])
-    if channel_id not in receivers:
-        receivers.append(channel_id)
+async def add_channel(_, m: Message):
+    if len(m.command) < 2:
+        return await m.reply("❌ Usage: /add_channel CHANNEL_ID")
+    data = await get_config()
+    receivers = data["receivers"]
+    new_channel = int(m.command[1])
+    if new_channel not in receivers:
+        receivers.append(new_channel)
         await update_config({"receivers": receivers})
-        await message.reply(f"✅ Added receiver channel `{channel_id}`.")
+        await m.reply(f"✅ Added receiver channel `{new_channel}`.")
     else:
-        await message.reply("⚠️ Channel already in receivers list.")
+        await m.reply("⚠️ Channel already added.")
 
-# /remove_channel
 @app.on_message(filters.command("remove_channel") & filters.user(OWNER_ID))
-async def remove_channel_cmd(client, message: Message):
-    if len(message.command) < 2:
-        await message.reply("❌ Usage: /remove_channel [channel_id]")
-        return
-    cfg = await get_config()
-    receivers = cfg["receivers"]
-    channel_id = int(message.command[1])
-    if channel_id in receivers:
-        receivers.remove(channel_id)
+async def remove_channel(_, m: Message):
+    if len(m.command) < 2:
+        return await m.reply("❌ Usage: /remove_channel CHANNEL_ID")
+    data = await get_config()
+    receivers = data["receivers"]
+    rem_channel = int(m.command[1])
+    if rem_channel in receivers:
+        receivers.remove(rem_channel)
         await update_config({"receivers": receivers})
-        await message.reply(f"✅ Removed receiver channel `{channel_id}`.")
+        await m.reply(f"✅ Removed channel `{rem_channel}`.")
     else:
-        await message.reply("⚠️ Channel ID not found in receivers.")
+        await m.reply("⚠️ Channel not found in list.")
 
-# /pause
 @app.on_message(filters.command("pause") & filters.user(OWNER_ID))
-async def pause_cmd(client, message: Message):
+async def pause(_, m: Message):
     await update_config({"paused": True})
-    await message.reply("⏸️ Forwarding paused.")
+    await m.reply("⏸️ Forwarding paused.")
 
-# /resume
 @app.on_message(filters.command("resume") & filters.user(OWNER_ID))
-async def resume_cmd(client, message: Message):
+async def resume(_, m: Message):
     await update_config({"paused": False})
-    await message.reply("▶️ Forwarding resumed.")
+    await m.reply("▶️ Forwarding resumed.")
 
-# /duration
-@app.on_message(filters.command("duration") & filters.user(OWNER_ID))
-async def duration_cmd(client, message: Message):
-    if len(message.command) < 2:
-        await message.reply("❌ Usage: /duration [seconds]")
-        return
-    duration = int(message.command[1])
-    await update_config({"duration": duration})
-    await message.reply(f"⏱️ Duration updated to {duration} seconds.")
-
-# /info
 @app.on_message(filters.command("info") & filters.user(OWNER_ID))
-async def info_cmd(client, message: Message):
-    cfg = await get_config()
-    text = f"📊 **Bot Status**\n\nDB Channel: `{cfg['db_channel']}`\nReceivers: `{cfg['receivers']}`\nPaused: `{cfg['paused']}`\nDuration: `{cfg['duration']} seconds`"
-    await message.reply(text)
+async def info(_, m: Message):
+    data = await get_config()
+    text = f"ℹ️ **Bot Info**\n\n"
+    text += f"**DB Channel:** {data['db_channel']}\n"
+    text += f"**Receivers:** {data['receivers']}\n"
+    text += f"**Paused:** {data['paused']}\n"
+    text += f"**Duration:** {data['duration']} sec"
+    await m.reply(text)
+
+@app.on_message(filters.command("duration") & filters.user(OWNER_ID))
+async def duration(_, m: Message):
+    if len(m.command) < 2:
+        return await m.reply("❌ Usage: /duration SECONDS")
+    await update_config({"duration": int(m.command[1])})
+    await m.reply(f"✅ Duration updated to {m.command[1]} seconds.")
 
 # Forward loop
 async def forward_loop():
+    await app.start()
+    print("🔵 Forward loop started.")
+
     while True:
-        cfg = await get_config()
-        if cfg["paused"]:
+        data = await get_config()
+        if data["paused"]:
             print("⏸️ Forwarding is paused.")
             await asyncio.sleep(10)
             continue
 
-        db_channel = cfg["db_channel"]
-        receivers = cfg["receivers"]
-        duration = cfg["duration"]
+        db_channel = data["db_channel"]
+        receivers = data["receivers"]
+        duration = data["duration"]
 
         if not db_channel or not receivers:
             print("⚠️ DB channel or receivers not set.")
-            await asyncio.sleep(30)
+            await asyncio.sleep(10)
             continue
 
         try:
-            async for msg in app.get_chat_history(db_channel, limit=1, reverse=True):
-                if not msg or (not msg.text and not msg.media):
-                    print("⚠️ Skipping empty/service message.")
+            msgs = []
+            async for msg in app.get_chat_history(db_channel, limit=20):
+                msgs.append(msg)
+
+            msgs.reverse()  # process oldest first
+
+            valid_found = False
+            skipped_count = 0
+
+            for msg in msgs:
+                if not msg or not hasattr(msg, "id"):
+                    print("⚠️ Skipping invalid message.")
+                    skipped_count += 1
                     continue
+                if msg.empty or (not msg.text and not msg.media):
+                    print("⚠️ Skipping empty/service message.")
+                    skipped_count += 1
+                    continue
+
+                valid_found = True
+
                 for r in receivers:
                     try:
                         await msg.copy(r)
-                        print(f"✅ Forwarded {msg.id} to {r}")
+                        print(f"✅ Forwarded message {msg.id} to {r}")
                     except Exception as e:
                         print(f"❌ Failed to forward {msg.id} to {r}: {e}")
+
                 await asyncio.sleep(duration)
+
+            if skipped_count > 0:
+                print(f"⚠️ Skipped {skipped_count} invalid/empty/service messages in this batch.")
+            if not valid_found:
+                print("⏳ No valid messages found, sleeping.")
+                await asyncio.sleep(duration)
+
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
-            await asyncio.sleep(30)
+            await asyncio.sleep(10)
 
 # Run
 if __name__ == "__main__":
-    print("🔵 Userbot starting...")
+    print("🔵 Bot starting...")
     loop = asyncio.get_event_loop()
     loop.create_task(forward_loop())
     app.run()
