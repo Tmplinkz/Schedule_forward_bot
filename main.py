@@ -163,13 +163,10 @@ async def forward_loop():
                 print("⏳ No valid messages found, sleeping.")
                 await asyncio.sleep(duration)
         
-    
-
-            
 # Run
-if __name__ == "__main__":
-    print("🔵 Bot starting...")
-    loop = asyncio.get_event_loop()
-    loop.create_task(forward_loop())
-    app.run()
+            if __name__ == "__main__":
+                print("🔵 Bot starting...")
+                loop = asyncio.get_event_loop()
+                loop.create_task(forward_loop())
+                app.run()
     
