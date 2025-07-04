@@ -2,17 +2,10 @@ import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymongo import MongoClient
-import os
+from config import API_ID, API_HASH, SESSION_STRING, MONGO_URI, OWNER_ID
 import pyrogram.utils
 
 pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
-
-# Configurations
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-SESSION_STRING = os.getenv("SESSION_STRING")
-MONGO_URI = os.getenv("MONGO_URI")
-OWNER_ID = int(os.getenv("OWNER_ID"))
 
 # Initialize userbot client
 app = Client(name="userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
@@ -150,4 +143,4 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(forward_loop())
     app.run()
-                
+    
