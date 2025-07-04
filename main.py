@@ -100,7 +100,6 @@ async def duration(_, m: Message):
 
 # Forward loop
 async def forward_loop():
-    await app.start()
     print("🔵 Forward loop started.")
 
     while True:
