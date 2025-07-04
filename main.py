@@ -126,46 +126,50 @@ async def forward_loop():
                 await asyncio.sleep(60)
                 continue
 
-            msgs = app.get_chat_history(db_channel, offset_id=last_id, limit=20)
-            
-            valid_found = False
-            skipped_count = 0
-            
+msgs = app.get_chat_history(db_channel, offset_id=last_id, limit=20)
+
+valid_found = False
+skipped_count = 0
+
+try:
+    async for msg in msgs:
+        if not msg or not hasattr(msg, "id"):
+            print("⚠️ Skipping invalid message.")
+            skipped_count += 1
+            continue
+        if msg.empty or (not msg.text and not msg.media):
+            print("⚠️ Skipping empty/service message.")
+            skipped_count += 1
+            continue
+
+        valid_found = True
+
+        for r in receivers:
             try:
-                async for msg in msgs:
-                    if not msg or not hasattr(msg, "id"):
-                        print("⚠️ Skipping invalid message.")
-                        skipped_count += 1
-                        continue
-                    if msg.empty or (not msg.text and not msg.media):
-                        print("⚠️ Skipping empty/service message.")
-                        skipped_count += 1
-                        continue
-                        
-                    valid_found = True
-                    
-                    for r in receivers:
-                        try:
-                            await msg.copy(r)
-                            print(f"✅ Forwarded message {msg.id} to {r}")
-                        except Exception as e:
-                            print(f"❌ Failed to forward message {msg.id} to {r}: {e}")
+                await msg.copy(r)
+                print(f"✅ Forwarded message {msg.id} to {r}")
+            except Exception as e:
+                print(f"❌ Failed to forward message {msg.id} to {r}: {e}")
 
         # sleep after forwarding each valid message if required
-                    await asyncio.sleep(duration)
+        await asyncio.sleep(duration)
 
-            except Exception as e:
-                print(f"❌ Error while fetching messages: {e}")
-        
-            if skipped_count > 0:
-                print(f"⚠️ Skipped {skipped_count} invalid/empty/service messages in this batch.")
-            if not valid_found:
-                print("⏳ No valid messages found, sleeping.")
-                await asyncio.sleep(duration)
-        
+except Exception as e:
+    print(f"❌ Error while fetching messages: {e}")
+
+if skipped_count > 0:
+    print(f"⚠️ Skipped {skipped_count} invalid/empty/service messages in this batch.")
+if not valid_found:
+    print("⏳ No valid messages found, sleeping.")
+    await asyncio.sleep(duration)
+
 # Run
-            if __name__ == "__main__":
-                print("🔵 Bot starting...")
-                loop = asyncio.get_event_loop()
-                loop.create_task(forward_loop())
-                app.run()
+if __name__ == "__main__":
+    print("🔵 Bot starting...")
+    loop = asyncio.get_event_loop()
+    loop.create_task(forward_loop())
+    app.run()
+    
+
+
+    
