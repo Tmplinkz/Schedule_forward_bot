@@ -8,7 +8,7 @@ import pyrogram.utils
 pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
 # Initialize MongoDB
 mongo = MongoClient(MONGO_URI)
-db = mongo.forwardbot
+db = mongo.ForwardBot
 config = db.config
 
 # Initialize userbot
