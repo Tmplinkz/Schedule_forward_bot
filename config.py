@@ -1,9 +1,7 @@
-import os
-
-API_ID = int(os.getenv("API_ID", "21261146"))
-API_HASH = os.getenv("API_HASH", "d3b7a147e58bbc6856d6aec9cddb74fc")
-SESSION_STRING = os.getenv("SESSION_STRING", "BQFEa1oAJRKqGFYiiYObit6AszTajczXUJoTxWX_bmrYNtD7XbPhsyAHF0kzjEdOsqjmR_1SYX2DU-wq0agQJiooQtjRADABoFiRyzwMKbAxbblGyec-aatgakUxTzv4ZktMiUWqxKMkuKH3YNzuTEj3OLtZyPi2VoHrYl_dTOfESqFqJa1642JX7t_CS0XeGhYy-a1CdNHH2GF4oNBnbJgS5XJc1lHWhMPKJYZsEz-opIIWI-2yAk8Meo3gvwijSqauKDbijajgEBU0ilSHtJhzRMsap4MKi4PvtOyWKGyeLDaMCujpUZ6zXS2_hkFgin4kBQBDKUv9O2TIAs3LWw8qYYpviQAAAAHbKHGiAA")
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://ganesh:8525@cluster0.bmgqo8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-OWNER_ID = int(os.getenv("OWNER_ID", "5066042764"))
-
+API_ID = "21261146"
+API_HASH = "d3b7a147e58bbc6856d6aec9cddb74fc"
+SESSION_STRING = "BQFEa1oAJRKqGFYiiYObit6AszTajczXUJoTxWX_bmrYNtD7XbPhsyAHF0kzjEdOsqjmR_1SYX2DU-wq0agQJiooQtjRADABoFiRyzwMKbAxbblGyec-aatgakUxTzv4ZktMiUWqxKMkuKH3YNzuTEj3OLtZyPi2VoHrYl_dTOfESqFqJa1642JX7t_CS0XeGhYy-a1CdNHH2GF4oNBnbJgS5XJc1lHWhMPKJYZsEz-opIIWI-2yAk8Meo3gvwijSqauKDbijajgEBU0ilSHtJhzRMsap4MKi4PvtOyWKGyeLDaMCujpUZ6zXS2_hkFgin4kBQBDKUv9O2TIAs3LWw8qYYpviQAAAAHbKHGiAA"
+MONGO_URI = "mongodb+srv://ganesh:8525@cluster0.bmgqo8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+OWNER_ID = 5066042764
+DEFAULT_DURATION = 1800  
 
