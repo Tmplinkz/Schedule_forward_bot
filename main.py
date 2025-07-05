@@ -151,7 +151,7 @@ async def forward_loop():
 
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
-            await asyncio.sleep(10)
+            await asyncio.sleep(duration)
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
