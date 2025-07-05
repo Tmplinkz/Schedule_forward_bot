@@ -34,7 +34,8 @@ async def update_config(key, value):
 @app.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_handler(client, message: Message):
     await message.reply("👋 **Welcome to the Forward Bot Userbot!**\nUse /add_db, /add_channel, /duration, /pause, /resume, /info as needed.")
-
+    client.loop.create_task(forward_loop())
+    
 @app.on_message(filters.command("add_db") & filters.user(OWNER_ID))
 async def add_db_handler(client, message: Message):
     if len(message.command) < 2:
@@ -156,6 +157,5 @@ async def forward_loop():
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.create_task(forward_loop())
     app.run()
     
