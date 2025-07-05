@@ -107,6 +107,7 @@ async def info_handler(client, message: Message):
 # Forwarding loop
 
 async def forward_loop():
+    await app.start()
     print("🔵 Forward loop started.")
 
     last_processed_id = None
