@@ -105,7 +105,7 @@ async def forward_loop():
     while True:
         try:
             # Get db channel
-            db_data = db.settings.find_one({"_id": "db_channel"})
+            db_data = db.settings.find_one({"_id": "db_channel"}) or db.settings.find_one({"_id": "db"})
             if not db_data:
                 print("❌ No DB channel set. Sleeping...")
                 await asyncio.sleep(30)
