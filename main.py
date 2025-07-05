@@ -2,6 +2,7 @@ import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymongo import MongoClient
+from pyrogram.errors import FloodWait
 from config import API_ID, API_HASH, SESSION_STRING, MONGO_URI, OWNER_ID, DEFAULT_DURATION
 import pyrogram.utils
 
@@ -152,7 +153,7 @@ async def forward_loop():
 
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
-            await asyncio.sleep(10)
+            await asyncio.sleep(duration)
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
