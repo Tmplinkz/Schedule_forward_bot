@@ -2,175 +2,159 @@ import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymongo import MongoClient
-from config import API_ID, API_HASH, SESSION_STRING, MONGO_URI, OWNER_ID
+from config import API_ID, API_HASH, SESSION_STRING, MONGO_URI, OWNER_ID, DEFAULT_DURATION
 import pyrogram.utils
 
 pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
 # Initialize MongoDB
 mongo = MongoClient(MONGO_URI)
-db = mongo.ForwardBot
-config = db.config
+db = mongo["ForwardBot1"]
+config_col = db["config"]
 
 # Initialize userbot
 app = Client("userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
+# Globals
+pause_flag = False
+
 # Helper functions
 async def get_config():
-    data = config.find_one({"_id": "config"})
+    data = config_col.find_one({"_id": "config"})
     if not data:
-        config.insert_one({
-            "_id": "config",
-            "db_channel": None,
-            "receivers": [],
-            "paused": False,
-            "duration": 1800
-        })
-        return config.find_one({"_id": "config"})
+        data = {"_id": "config", "db_channel": None, "receivers": [], "duration": DEFAULT_DURATION}
+        config_col.insert_one(data)
     return data
 
-async def update_config(update):
-    config.update_one({"_id": "config"}, {"$set": update})
+async def update_config(key, value):
+    config_col.update_one({"_id": "config"}, {"$set": {key: value}})
 
 # Commands
+
 @app.on_message(filters.command("start") & filters.user(OWNER_ID))
-async def start(_, m: Message):
-    await m.reply("👋 **Welcome to your Forward Bot Userbot!**\n\nUse /add_db, /add_channel, /duration, /pause, /resume as needed.")
+async def start_handler(client, message: Message):
+    await message.reply("👋 **Welcome to the Forward Bot Userbot!**\nUse /add_db, /add_channel, /duration, /pause, /resume, /info as needed.")
 
 @app.on_message(filters.command("add_db") & filters.user(OWNER_ID))
-async def add_db(_, m: Message):
-    if len(m.command) < 2:
-        return await m.reply("❌ Usage: /add_db CHANNEL_ID")
-    await update_config({"db_channel": int(m.command[1])})
-    await m.reply(f"✅ Database channel set to `{m.command[1]}`.")
+async def add_db_handler(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("⚠️ Provide DB channel ID.\nExample: /add_db -1001234567890")
+        return
+    db_channel = int(message.command[1])
+    await update_config("db_channel", db_channel)
+    await message.reply(f"✅ DB channel set to `{db_channel}`.")
 
 @app.on_message(filters.command("add_channel") & filters.user(OWNER_ID))
-async def add_channel(_, m: Message):
-    if len(m.command) < 2:
-        return await m.reply("❌ Usage: /add_channel CHANNEL_ID")
-    data = await get_config()
-    receivers = data["receivers"]
-    new_channel = int(m.command[1])
-    if new_channel not in receivers:
-        receivers.append(new_channel)
-        await update_config({"receivers": receivers})
-        await m.reply(f"✅ Added receiver channel `{new_channel}`.")
+async def add_channel_handler(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("⚠️ Provide receiver channel ID.\nExample: /add_channel -1009876543210")
+        return
+    channel_id = int(message.command[1])
+    config = await get_config()
+    receivers = config.get("receivers", [])
+    if channel_id not in receivers:
+        receivers.append(channel_id)
+        await update_config("receivers", receivers)
+        await message.reply(f"✅ Added receiver channel `{channel_id}`.")
     else:
-        await m.reply("⚠️ Channel already added.")
+        await message.reply("⚠️ This channel is already in the list.")
 
 @app.on_message(filters.command("remove_channel") & filters.user(OWNER_ID))
-async def remove_channel(_, m: Message):
-    if len(m.command) < 2:
-        return await m.reply("❌ Usage: /remove_channel CHANNEL_ID")
-    data = await get_config()
-    receivers = data["receivers"]
-    rem_channel = int(m.command[1])
-    if rem_channel in receivers:
-        receivers.remove(rem_channel)
-        await update_config({"receivers": receivers})
-        await m.reply(f"✅ Removed channel `{rem_channel}`.")
+async def remove_channel_handler(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("⚠️ Provide receiver channel ID to remove.\nExample: /remove_channel -1009876543210")
+        return
+    channel_id = int(message.command[1])
+    config = await get_config()
+    receivers = config.get("receivers", [])
+    if channel_id in receivers:
+        receivers.remove(channel_id)
+        await update_config("receivers", receivers)
+        await message.reply(f"✅ Removed channel `{channel_id}`.")
     else:
-        await m.reply("⚠️ Channel not found in list.")
+        await message.reply("⚠️ This channel was not in the list.")
 
 @app.on_message(filters.command("pause") & filters.user(OWNER_ID))
-async def pause(_, m: Message):
-    await update_config({"paused": True})
-    await m.reply("⏸️ Forwarding paused.")
+async def pause_handler(client, message: Message):
+    global pause_flag
+    pause_flag = True
+    await message.reply("⏸️ Forwarding paused.")
 
 @app.on_message(filters.command("resume") & filters.user(OWNER_ID))
-async def resume(_, m: Message):
-    await update_config({"paused": False})
-    await m.reply("▶️ Forwarding resumed.")
-
-@app.on_message(filters.command("info") & filters.user(OWNER_ID))
-async def info(_, m: Message):
-    data = await get_config()
-    text = f"ℹ️ **Bot Info**\n\n"
-    text += f"**DB Channel:** {data['db_channel']}\n"
-    text += f"**Receivers:** {data['receivers']}\n"
-    text += f"**Paused:** {data['paused']}\n"
-    text += f"**Duration:** {data['duration']} sec"
-    await m.reply(text)
+async def resume_handler(client, message: Message):
+    global pause_flag
+    pause_flag = False
+    await message.reply("▶️ Forwarding resumed.")
 
 @app.on_message(filters.command("duration") & filters.user(OWNER_ID))
-async def duration(_, m: Message):
-    if len(m.command) < 2:
-        return await m.reply("❌ Usage: /duration SECONDS")
-    await update_config({"duration": int(m.command[1])})
-    await m.reply(f"✅ Duration updated to {m.command[1]} seconds.")
+async def duration_handler(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("⚠️ Provide duration in seconds.\nExample: /duration 1800")
+        return
+    duration = int(message.command[1])
+    await update_config("duration", duration)
+    await message.reply(f"✅ Duration set to {duration} seconds.")
 
-# Forward loop
+@app.on_message(filters.command("info") & filters.user(OWNER_ID))
+async def info_handler(client, message: Message):
+    config = await get_config()
+    txt = f"ℹ️ **Bot Status**:\n\n"
+    txt += f"**DB Channel**: `{config.get('db_channel')}`\n"
+    txt += f"**Receivers**: `{config.get('receivers')}`\n"
+    txt += f"**Duration**: `{config.get('duration')}` seconds\n"
+    txt += f"**Paused**: `{pause_flag}`"
+    await message.reply(txt)
+
+# Forwarding loop
+
 async def forward_loop():
     print("🔵 Forward loop started.")
 
+    last_processed_id = None
+
     while True:
+        if pause_flag:
+            await asyncio.sleep(5)
+            continue
+
+        config = await get_config()
+        db_channel = config.get("db_channel")
+        receivers = config.get("receivers")
+        duration = config.get("duration", DEFAULT_DURATION)
+
+        if not db_channel or not receivers:
+            print("⚠️ DB channel or receivers not set. Sleeping.")
+            await asyncio.sleep(10)
+            continue
+
         try:
-            # Get db channel
-            db_data = db.settings.find_one({"_id": "db_channel"}) or db.settings.find_one({"_id": "db"})
-            if not db_data:
-                print("❌ No DB channel set. Sleeping...")
-                await asyncio.sleep(30)
-                continue
-            db_channel = db_data["id"]
-
-            # Get receivers
-            receivers_data = db.settings.find_one({"_id": "receivers"})
-            receivers = receivers_data["ids"] if receivers_data else []
-
-            if not receivers:
-                print("❌ No receiver channels added. Sleeping...")
-                await asyncio.sleep(30)
-                continue
-
-            # Get duration
-            duration_data = db.settings.find_one({"_id": "duration"})
-            duration = duration_data["seconds"] if duration_data else 1800  # default 30 min
-
-            # Get last forwarded ID
-            forward_state = db.settings.find_one({"_id": "forwarding"})
-            last_id = forward_state["last_id"] if forward_state else 0
-
-            # Fetch messages after last forwarded ID
-            msgs = app.get_chat_history(db_channel, offset_id=last_id)
-
-            valid_found = False
-            async for msg in msgs:
-                if not msg or not hasattr(msg, "id"):
-                    continue
-                if msg.empty or (not msg.text and not msg.media):
+            async for msg in app.get_chat_history(db_channel, limit=5):
+                if last_processed_id is None:
+                    last_processed_id = msg.id
                     continue
 
-                valid_found = True
+                if msg.id <= last_processed_id:
+                    continue
 
-                # Forward to all receivers
+                if not msg or msg.empty or msg.pinned_message or (not msg.text and not msg.media):
+                    print("⚠️ Skipping invalid/empty/pinned message.")
+                    continue
+
                 for r in receivers:
                     try:
                         await msg.copy(r)
-                        print(f"✅ Forwarded {msg.id} to {r}")
+                        print(f"✅ Forwarded message {msg.id} to {r}")
                     except Exception as e:
                         print(f"❌ Failed to forward {msg.id} to {r}: {e}")
 
-                # Update last forwarded ID
-                db.settings.update_one(
-                    {"_id": "forwarding"},
-                    {"$set": {"last_id": msg.id}},
-                    upsert=True
-                )
-
-                # Sleep between messages
-                await asyncio.sleep(duration)
-
-            if not valid_found:
-                print("⏳ No new valid messages found. Sleeping...")
+                last_processed_id = msg.id
                 await asyncio.sleep(duration)
 
         except Exception as e:
             print(f"❌ Error in forward loop: {e}")
-            await asyncio.sleep(30)
+            await asyncio.sleep(10)
 
-# Run
 if __name__ == "__main__":
-    print("🔵 Bot starting...")
     loop = asyncio.get_event_loop()
     loop.create_task(forward_loop())
     app.run()
-            
+    
